@@ -21,7 +21,28 @@ const Board = () => {
     // Modals state
     const [isListModalOpen, setIsListModalOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [activeListId, setActiveListId] = useState(null);
+    const [inviteEmail, setInviteEmail] = useState('');
+
+    const handleInvite = async (e) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(`http://localhost:5001/api/boards/${id}/invite`, {
+                email: inviteEmail
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('User invited successfully');
+            setInviteEmail('');
+            setIsInviteModalOpen(false);
+            fetchBoard();
+        } catch (error) {
+            console.error('Invite failed', error);
+            toast.error(error.response?.data?.message || 'Failed to invite user');
+        }
+    };
 
     // Form state
     const [newListTitle, setNewListTitle] = useState('');
@@ -37,6 +58,10 @@ const Board = () => {
         socket.emit('join_board', id);
 
         socket.on('board_updated', () => {
+            fetchBoard();
+        });
+
+        socket.on('task_assigned', () => {
             fetchBoard();
         });
 
@@ -139,6 +164,38 @@ const Board = () => {
         }
     };
 
+    const handleDeleteList = async (listId) => {
+        if (!window.confirm('Delete this list and all its tasks?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`http://localhost:5001/api/lists/${listId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('List deleted');
+            fetchBoard();
+            socket.emit('board_updated', id);
+        } catch (error) {
+            console.error(error);
+            toast.error('Failed to delete list');
+        }
+    };
+
+    const handleDeleteTask = async (taskId, listId) => {
+        if (!window.confirm('Delete this task?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`http://localhost:5001/api/tasks/${taskId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            toast.success('Task deleted');
+            fetchBoard();
+            socket.emit('board_updated', id);
+        } catch (error) {
+            console.error(error);
+            toast.error('Failed to delete task');
+        }
+    };
+
     if (loading) return (
         <AppLayout>
             <div className="flex items-center justify-center h-full">
@@ -165,38 +222,79 @@ const Board = () => {
                         </div>
                         <div className="h-4 w-[1px] bg-white/[0.1]"></div>
                         <div className="flex items-center -space-x-1">
-                            <div className="w-6 h-6 rounded-full bg-indigo-500 border-2 border-[#16181d] flex items-center justify-center text-[9px] font-bold text-white z-10">M</div>
-                            <div className="w-6 h-6 rounded-full bg-[#252830] border-2 border-[#16181d] flex items-center justify-center text-[9px] font-bold text-gray-400">3+</div>
+                            {board.members && board.members.filter(Boolean).length > 0 ? (
+                                <>
+                                    {board.members.filter(Boolean).slice(0, 3).map((m, i) => (
+                                        <div key={m._id} className="w-6 h-6 rounded-full bg-indigo-500 border-2 border-[#16181d] flex items-center justify-center text-[9px] font-bold text-white z-10" title={m.username}>
+                                            {m.username.charAt(0).toUpperCase()}
+                                        </div>
+                                    ))}
+                                    {board.members.filter(Boolean).length > 3 && (
+                                        <div className="w-6 h-6 rounded-full bg-[#252830] border-2 border-[#16181d] flex items-center justify-center text-[9px] font-bold text-gray-400">
+                                            +{board.members.filter(Boolean).length - 3}
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="w-6 h-6 rounded-full bg-indigo-500 border-2 border-[#16181d] flex items-center justify-center text-[9px] font-bold text-white z-10">M</div>
+                            )}
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <Button size="sm" variant="secondary" className="gap-2" onClick={() => setIsInviteModalOpen(true)}>
+                            <Users className="w-3.5 h-3.5" /> Invite
+                        </Button>
                         <div className="relative hidden md:block w-48">
                             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-                            <input
-                                className="w-full bg-[#0e1016] border border-white/[0.08] rounded pl-8 pr-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-indigo-500/50 placeholder:text-gray-600"
+                            <Input
+                                className="w-full bg-[#0e1016] border border-white/[0.08] rounded pl-8 pr-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-indigo-500/50 placeholder:text-gray-600 cursor-pointer"
                                 placeholder="Filter tasks..."
+                                readOnly
+                                onClick={() => setIsSearchModalOpen(true)}
                             />
                         </div>
                         <div className="h-4 w-[1px] bg-white/[0.1] hidden md:block"></div>
-                        <Button size="sm" variant="secondary" className="h-7 text-xs gap-1.5">
-                            <Filter className="w-3 h-3" /> Filter
-                        </Button>
-                        <Button size="sm" onClick={() => setIsListModalOpen(true)} className="h-7 text-xs">
-                            <Plus className="w-3.5 h-3.5 mr-1" /> Add List
-                        </Button>
-                        <button className="text-gray-400 hover:text-white p-1">
-                            <MoreHorizontal className="w-5 h-5" />
-                        </button>
+                        {/* ... */}
                     </div>
                 </header>
+
+                {/* ... Board Canvas ... */}
+
+                {/* Invite Member Modal */}
+                <Modal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} title="Invite Member">
+                    <form onSubmit={handleInvite} className="space-y-4">
+                        <div>
+                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5 block">Email Address</label>
+                            <Input
+                                value={inviteEmail}
+                                onChange={(e) => setInviteEmail(e.target.value)}
+                                placeholder="colleague@example.com"
+                                type="email"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3 mt-6">
+                            <Button type="button" variant="ghost" onClick={() => setIsInviteModalOpen(false)}>Cancel</Button>
+                            <Button type="submit">Send Invite</Button>
+                        </div>
+                    </form>
+                </Modal>
 
                 {/* Board Canvas */}
                 <main className="flex-1 overflow-x-auto overflow-y-hidden">
                     <div className="h-full px-4 py-6 flex space-x-4 min-w-max">
                         <DragDropContext onDragEnd={onDragEnd}>
                             {lists.map(list => (
-                                <ListColumn key={list._id} list={list} tasks={list.tasks} onAddTask={openTaskModal} />
+                                <ListColumn
+                                    key={list._id}
+                                    list={list}
+                                    tasks={list.tasks}
+                                    onAddTask={openTaskModal}
+                                    boardMembers={board.members ? board.members.filter(Boolean) : []}
+                                    onDeleteList={() => handleDeleteList(list._id)}
+                                    onDeleteTask={(taskId) => handleDeleteTask(taskId, list._id)}
+                                />
                             ))}
                         </DragDropContext>
 

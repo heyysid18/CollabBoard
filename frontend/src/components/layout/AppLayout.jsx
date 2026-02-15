@@ -42,7 +42,7 @@ const AppLayout = ({ children }) => {
                         <div className="w-6 h-6 bg-indigo-600 rounded-md flex items-center justify-center shadow-lg shadow-indigo-500/20">
                             <Layout className="w-3.5 h-3.5 text-white" />
                         </div>
-                        <span className="font-semibold text-sm tracking-tight text-white">TaskFlow</span>
+                        <span className="font-semibold text-sm tracking-tight text-white">CollabBoard</span>
                     </div>
                 </div>
 

@@ -39,9 +39,16 @@ router.delete('/:id', protect, async (req, res) => {
         const list = await List.findById(req.params.id);
         if (!list) return res.status(404).json({ message: 'List not found' });
 
+        const Task = require('../models/Task');
+
+        // Remove list reference from board
         await Board.findByIdAndUpdate(list.board, { $pull: { lists: list._id } });
+
+        // Delete all tasks in this list
+        await Task.deleteMany({ list: list._id });
+
         await list.deleteOne();
-        res.json({ message: 'List removed' });
+        res.json({ message: 'List and associated tasks removed' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

@@ -1,11 +1,11 @@
 import React from 'react';
 import { Droppable } from '@hello-pangea/dnd';
 import TaskCard from './TaskCard';
-import { MoreHorizontal, Plus } from 'lucide-react';
+import { MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { cn } from '../utils/cn';
 
-const ListColumn = ({ list, tasks, onAddTask }) => {
+const ListColumn = ({ list, tasks, onAddTask, boardMembers, onDeleteList, onDeleteTask }) => {
     return (
         <div className="w-[280px] flex-shrink-0 flex flex-col h-full max-h-full">
             {/* List Header */}
@@ -14,13 +14,17 @@ const ListColumn = ({ list, tasks, onAddTask }) => {
                     <h3 className="font-medium text-[13px] text-gray-200">{list.title}</h3>
                     <span className="text-[11px] text-gray-500 font-medium">{tasks.length}</span>
                 </div>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                    <MoreHorizontal className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onDeleteList}
+                        className="h-6 w-6 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Delete List"
+                    >
+                        <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                </div>
             </div>
 
             {/* Droppable Area */}
@@ -36,8 +40,14 @@ const ListColumn = ({ list, tasks, onAddTask }) => {
                             )}
                         >
                             <div className="flex flex-col gap-2">
-                                {tasks.map((task, index) => (
-                                    <TaskCard key={task._id} task={task} index={index} />
+                                {tasks.filter(Boolean).map((task, index) => (
+                                    <TaskCard
+                                        key={task._id}
+                                        task={task}
+                                        index={index}
+                                        boardMembers={boardMembers}
+                                        onDelete={() => onDeleteTask(task._id)}
+                                    />
                                 ))}
                             </div>
                             {provided.placeholder}
