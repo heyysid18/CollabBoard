@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-root: #0e1016;
+  --color-bg-panel: #16181d;
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-text-primary: #ededef;
+  --color-brand: #6366f1;
+}
+
+@layer base {
+  body {
+    @apply bg-[#0e1016] text-[#ededef] font-sans antialiased selection:bg-indigo-500/30;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}
+
+@layer components {
+
+  /* Panels & Cards */
+  .panel {
+    @apply bg-[#16181d] border border-white/[0.08] shadow-sm;
+  }
+
+  .glass-panel {
+    @apply bg-[#1c1f26] border border-white/[0.08] shadow-xl backdrop-blur-xl;
+  }
+
+  /* Inputs */
+  .input-standard {
+    @apply w-full bg-[#0e1016] border border-white/[0.08] rounded-md px-3 py-2 text-sm text-[#ededef] placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium py-2 px-4 rounded-md transition-all active:scale-[0.98];
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .btn-secondary {
+    @apply bg-white/[0.03] hover:bg-white/[0.08] text-[#ededef] text-sm font-medium py-2 px-4 rounded-md border border-white/[0.05] transition-all active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply hover:bg-white/[0.05] text-[#a1a1aa] hover:text-[#ededef] rounded-md p-1 transition-colors;
+  }
+
+  /* Typography */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply tracking-tight;
+  }
+}
