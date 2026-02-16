@@ -112,8 +112,8 @@ npm run dev
 
 ### 🔑 Demo Credentials
 For quick testing, you can use:
-- **Email**: `demo@example.com`
-- **Password**: `password123`
+- **Email**: `123@gmail.com`
+- **Password**: `12345678`
 *(Or simply register a new account)*
 
 ### 5. Running Tests
