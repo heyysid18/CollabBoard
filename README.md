@@ -42,6 +42,9 @@ A full-stack MERN application for real-time task management, inspired by Linear,
 
 ## 🏗 Architecture & Design
 
+> **[📄 View Detailed Architecture Diagram & Schema (ARCHITECTURE.md)](./ARCHITECTURE.md)**  
+> **[📡 View Full API Documentation (API.md)](./API.md)**
+
 ### Frontend Architecture (React + Vite)
 - **Component Structure**: Atomic design principles (UI components in `components/ui`, Feature components in `components/`, Pages in `pages/`).
 - **State Management**:
