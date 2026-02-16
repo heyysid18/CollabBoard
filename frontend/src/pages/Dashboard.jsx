@@ -28,22 +28,9 @@ const Dashboard = () => {
         fetchBoards();
     }, []);
 
-    useEffect(() => {
-        if (!socket || !user) return;
+    // ... socket effect ...
 
-        socket.emit('join_user_room', user._id);
 
-        const handleInvite = (data) => {
-            toast.success(`You were invited to board: ${data.boardTitle}`);
-            fetchBoards();
-        };
-
-        socket.on('board_invited', handleInvite);
-
-        return () => {
-            socket.off('board_invited', handleInvite);
-        };
-    }, [socket, user]);
 
     const fetchBoards = async () => {
         try {

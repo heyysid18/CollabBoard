@@ -2,34 +2,83 @@ const express = require('express');
 const Task = require('../models/Task');
 const List = require('../models/List');
 const Activity = require('../models/Activity');
+const logActivity = require('../utils/activityLogger');
 const { protect } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Get Tasks with Search & Pagination
+// Get Tasks with Search & Pagination
 router.get('/', protect, async (req, res) => {
-    const { boardId, search, page = 1, limit = 10 } = req.query;
+    const { boardId, search, page = 1, limit = 50, listId, assignee, priority } = req.query;
+
+    // Base query
     const query = { board: boardId };
 
+    // Text Search
     if (search) {
-        query.title = { $regex: search, $options: 'i' };
+        query.$text = { $search: search };
+    }
+
+    // Filter by List
+    if (listId) {
+        query.list = listId;
+    }
+
+    // Filter by Assignee
+    if (assignee) {
+        query.assignee = assignee;
+    }
+
+    // Filter by Priority
+    if (priority) {
+        query.priority = priority;
     }
 
     try {
-        const tasks = await Task.find(query)
-            .populate('assignees', 'username email')
-            .limit(limit * 1)
-            .skip((page - 1) * limit)
-            .sort({ createdAt: -1 });
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const limitNum = Math.min(parseInt(limit), 50); // Cap limit at 50
 
-        const count = await Task.countDocuments(query);
+        // Determine sort order
+        // If searching, sort by text score match quality
+        // Otherwise sort by position (for Kanban) or createdAt
+        let sort = { position: 1 };
+        let projection = {};
+
+        if (search) {
+            sort = { score: { $meta: "textScore" } };
+            projection = { score: { $meta: "textScore" } };
+        } else {
+            sort = { createdAt: -1 }; // Default for list view, Kanban usually fetches all
+        }
+
+        const tasks = await Task.find(query, projection)
+            .sort(sort)
+            .skip(skip)
+            .limit(limitNum)
+            .populate('assignee', 'username email')
+            .populate('list', 'title'); // Useful for search context
+
+        const totalCount = await Task.countDocuments(query);
 
         res.json({
             tasks,
-            totalPages: Math.ceil(count / limit),
-            currentPage: page,
-            totalTasks: count
+            totalCount,
+            totalPages: Math.ceil(totalCount / limitNum),
+            currentPage: parseInt(page)
         });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Get My Assigned Tasks
+router.get('/my-tasks', protect, async (req, res) => {
+    try {
+        const tasks = await Task.find({ assignee: req.user.id })
+            .populate('board', 'title') // Populate board title for context
+            .sort({ updatedAt: -1 });
+        res.json(tasks);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -37,27 +86,29 @@ router.get('/', protect, async (req, res) => {
 
 // Create Task
 router.post('/', protect, async (req, res) => {
-    const { title, description, listId, boardId, priority } = req.body;
+    const { title, description, listId, boardId, priority, assignee } = req.body;
     try {
         const task = await Task.create({
             title,
             description,
             list: listId,
             board: boardId,
-            priority
+            priority,
+            assignee
         });
 
         // Add task to list
         await List.findByIdAndUpdate(listId, { $push: { tasks: task._id } });
 
         // Log Activity
-        await Activity.create({
-            board: boardId,
-            user: req.user.id,
-            action: 'created_task',
+        await logActivity(req, {
+            boardId,
+            userId: req.user.id,
+            actionType: 'TASK_CREATED',
             details: `Created task "${task.title}"`,
             targetId: task._id,
-            targetModel: 'Task'
+            targetModel: 'Task',
+            metadata: { listId, priority }
         });
 
         res.status(201).json(task);
@@ -81,26 +132,30 @@ router.put('/:id', protect, async (req, res) => {
             req.body.list = req.body.listId;
         }
 
-        const task = await Task.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const task = await Task.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('assignee', 'username email');
 
         // Log Activity
-        let action = 'updated_task';
+        let actionType = 'TASK_UPDATED';
         let details = `Updated task "${task.title}"`;
+        let metadata = {};
 
         if (req.body.listId && oldTask.list.toString() !== req.body.listId) {
-            action = 'moved_task';
+            actionType = 'TASK_MOVED';
             details = `Moved task "${task.title}"`;
+            metadata = { fromList: oldTask.list, toList: req.body.listId };
         } else if (req.body.priority && oldTask.priority !== req.body.priority) {
             details = `Changed priority of "${task.title}" to ${req.body.priority}`;
+            metadata = { oldPriority: oldTask.priority, newPriority: req.body.priority };
         }
 
-        await Activity.create({
-            board: task.board,
-            user: req.user.id,
-            action,
+        await logActivity(req, {
+            boardId: task.board,
+            userId: req.user.id,
+            actionType,
             details,
             targetId: task._id,
-            targetModel: 'Task'
+            targetModel: 'Task',
+            metadata
         });
 
         res.json(task);
@@ -118,10 +173,10 @@ router.delete('/:id', protect, async (req, res) => {
         await List.findByIdAndUpdate(task.list, { $pull: { tasks: task._id } });
 
         // Log Activity (before delete to keep context if needed, or just log generally)
-        await Activity.create({
-            board: task.board,
-            user: req.user.id,
-            action: 'deleted_task',
+        await logActivity(req, {
+            boardId: task.board,
+            userId: req.user.id,
+            actionType: 'TASK_DELETED',
             details: `Deleted task "${task.title}"`,
             targetId: task._id,
             targetModel: 'Task'
@@ -134,42 +189,49 @@ router.delete('/:id', protect, async (req, res) => {
     }
 });
 
-// Assign Users to Task
+// Assign User to Task
 router.patch('/:id/assign', protect, async (req, res) => {
     try {
-        const { assignees } = req.body; // Array of user IDs
+        const { assignee } = req.body; // Single user ID or null
         const task = await Task.findById(req.params.id);
         if (!task) return res.status(404).json({ message: 'Task not found' });
 
         const BoardMember = require('../models/BoardMember');
+        const User = require('../models/User'); // Import User model
 
-        // Validate assignees are members
-        if (assignees && assignees.length > 0) {
-            const validMembers = await BoardMember.find({
+        // Validate assignee is member
+        if (assignee) {
+            const isMember = await BoardMember.findOne({
                 board: task.board,
-                user: { $in: assignees }
+                user: assignee
             });
 
-            // We compare the count of unique found members to the unique requested assignees
-            const uniqueAssignees = [...new Set(assignees)];
-            if (validMembers.length !== uniqueAssignees.length) {
-                return res.status(400).json({ message: 'One or more assignees are not members of this board' });
+            if (!isMember) {
+                return res.status(400).json({ message: 'User is not a member of this board' });
             }
         }
 
-        task.assignees = assignees;
+        task.assignee = assignee;
         await task.save();
 
-        const updatedTask = await Task.findById(task._id).populate('assignees', 'username email');
+        const updatedTask = await Task.findById(task._id).populate('assignee', 'username email');
+
+        // Fetch assignee name for log
+        let assigneeName = 'Unassigned';
+        if (assignee) {
+            const user = await User.findById(assignee);
+            assigneeName = user ? user.username : 'Unknown';
+        }
 
         // Log Activity
-        await Activity.create({
-            board: task.board,
-            user: req.user.id,
-            action: 'task_assigned', // Ensure this enum is handled in frontend if needed
-            details: `Updated assignees for task "${task.title}"`,
+        await logActivity(req, {
+            boardId: task.board,
+            userId: req.user.id,
+            actionType: assignee ? 'TASK_ASSIGNED' : 'TASK_UNASSIGNED',
+            details: assignee ? `Assigned task "${task.title}" to ${assigneeName}` : `Unassigned task "${task.title}"`,
             targetId: task._id,
-            targetModel: 'Task'
+            targetModel: 'Task',
+            metadata: { assigneeId: assignee }
         });
 
         res.json(updatedTask);

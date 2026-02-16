@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Board from './pages/Board';
+import MyTasks from './pages/MyTasks';
 import { SocketProvider } from './context/SocketContext';
 import { ToastProvider } from './components/ui/ToastProvider';
 
@@ -29,6 +30,14 @@ function App() {
                         element={
                             <ProtectedRoute>
                                 <Dashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/my-tasks"
+                        element={
+                            <ProtectedRoute>
+                                <MyTasks />
                             </ProtectedRoute>
                         }
                     />

@@ -8,8 +8,11 @@ import AppLayout from '../components/layout/AppLayout';
 import Modal from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
-import { Plus, Users, Star, MoreHorizontal, Filter, Search } from 'lucide-react';
+import { Plus, Users, Star, MoreHorizontal, Filter, Search, Activity } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ActivityLog from '../components/ActivityLog';
+import { SearchBar } from '../components/ui/SearchBar';
+import { Pagination } from '../components/ui/Pagination';
 
 const Board = () => {
     const { id } = useParams();
@@ -18,12 +21,50 @@ const Board = () => {
     const [lists, setLists] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // Search State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [searchPage, setSearchPage] = useState(1);
+    const [searchMeta, setSearchMeta] = useState({ totalPages: 1, totalCount: 0 });
+    const [isSearching, setIsSearching] = useState(false);
+
     // Modals state
     const [isListModalOpen, setIsListModalOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [activeListId, setActiveListId] = useState(null);
     const [inviteEmail, setInviteEmail] = useState('');
+    const [isActivityOpen, setIsActivityOpen] = useState(false);
+
+    const handleSearch = async (query) => {
+        setSearchQuery(query);
+        setSearchPage(1);
+        if (!query.trim()) {
+            setIsSearching(false);
+            return;
+        }
+        setIsSearching(true);
+        fetchSearchResults(query, 1);
+    };
+
+    const fetchSearchResults = async (query, page) => {
+        try {
+            const token = localStorage.getItem('token');
+            const { data } = await axios.get(`http://localhost:5001/api/tasks`, {
+                params: { boardId: id, search: query, page, limit: 10 },
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setSearchResults(data.tasks);
+            setSearchMeta({ totalPages: data.totalPages, totalCount: data.totalCount });
+        } catch (error) {
+            console.error('Search failed', error);
+        }
+    };
+
+    const handlePageChange = (newPage) => {
+        setSearchPage(newPage);
+        fetchSearchResults(searchQuery, newPage);
+    };
 
     const handleInvite = async (e) => {
         e.preventDefault();
@@ -245,71 +286,183 @@ const Board = () => {
                         <Button size="sm" variant="secondary" className="gap-2" onClick={() => setIsInviteModalOpen(true)}>
                             <Users className="w-3.5 h-3.5" /> Invite
                         </Button>
-                        <div className="relative hidden md:block w-48">
-                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-                            <Input
-                                className="w-full bg-[#0e1016] border border-white/[0.08] rounded pl-8 pr-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-indigo-500/50 placeholder:text-gray-600 cursor-pointer"
-                                placeholder="Filter tasks..."
-                                readOnly
-                                onClick={() => setIsSearchModalOpen(true)}
-                            />
+                        <div className="relative w-full md:w-64">
+                            <SearchBar onSearch={handleSearch} placeholder="Search tasks..." />
                         </div>
                         <div className="h-4 w-[1px] bg-white/[0.1] hidden md:block"></div>
-                        {/* ... */}
+                        <button
+                            onClick={() => setIsActivityOpen(!isActivityOpen)}
+                            className={`p-2 rounded-md transition-colors ${isActivityOpen ? 'bg-indigo-500/10 text-indigo-400' : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'}`}
+                            title="Toggle Activity"
+                        >
+                            <Activity className="w-4 h-4" />
+                        </button>
                     </div>
                 </header>
 
-                {/* ... Board Canvas ... */}
+                {/* Board Content Wrapper */}
+                <div className="flex-1 flex overflow-hidden">
+                    {/* Board Canvas OR Search Results */}
+                    <main className="flex-1 overflow-x-auto overflow-y-hidden bg-[#0e1016]">
+                        {isSearching ? (
+                            <div className="h-full p-8 overflow-y-auto">
+                                <h2 className="text-lg font-semibold text-white mb-6">
+                                    Search Results for "{searchQuery}"
+                                </h2>
+                                {searchResults.length > 0 ? (
+                                    <div className="space-y-4 max-w-4xl">
+                                        {searchResults.map(task => (
+                                            <div key={task._id} className="bg-[#16181d] border border-white/[0.06] rounded-xl p-4 flex items-center justify-between hover:border-indigo-500/50 transition-colors">
+                                                <div>
+                                                    <h3 className="text-white font-medium">{task.title}</h3>
+                                                    <p className="text-sm text-gray-500 mt-1">
+                                                        in <span className="text-indigo-400">{task.list?.title || 'Unknown List'}</span>
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <span className={`text-[10px] px-2 py-1 rounded border ${task.priority === 'High' ? 'text-red-400 border-red-400/20 bg-red-400/10' :
+                                                        task.priority === 'Medium' ? 'text-yellow-400 border-yellow-400/20 bg-yellow-400/10' :
+                                                            'text-green-400 border-green-400/20 bg-green-400/10'
+                                                        }`}>
+                                                        {task.priority}
+                                                    </span>
 
-                {/* Invite Member Modal */}
-                <Modal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} title="Invite Member">
-                    <form onSubmit={handleInvite} className="space-y-4">
-                        <div>
-                            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5 block">Email Address</label>
-                            <Input
-                                value={inviteEmail}
-                                onChange={(e) => setInviteEmail(e.target.value)}
-                                placeholder="colleague@example.com"
-                                type="email"
-                                autoFocus
-                            />
-                        </div>
-                        <div className="flex justify-end gap-3 mt-6">
-                            <Button type="button" variant="ghost" onClick={() => setIsInviteModalOpen(false)}>Cancel</Button>
-                            <Button type="submit">Send Invite</Button>
-                        </div>
-                    </form>
-                </Modal>
+                                                    {/* Assignee Dropdown */}
+                                                    <div className="relative group/assign">
+                                                        <button className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border border-white/[0.1] ${task.assignee ? 'bg-indigo-500' : 'bg-white/[0.05] hover:bg-white/[0.1]'}`}>
+                                                            {task.assignee ? task.assignee.username.charAt(0).toUpperCase() : <Users className="w-3 h-3 text-gray-400" />}
+                                                        </button>
 
-                {/* Board Canvas */}
-                <main className="flex-1 overflow-x-auto overflow-y-hidden">
-                    <div className="h-full px-4 py-6 flex space-x-4 min-w-max">
-                        <DragDropContext onDragEnd={onDragEnd}>
-                            {lists.map(list => (
-                                <ListColumn
-                                    key={list._id}
-                                    list={list}
-                                    tasks={list.tasks}
-                                    onAddTask={openTaskModal}
-                                    boardMembers={board.members ? board.members.filter(Boolean) : []}
-                                    onDeleteList={() => handleDeleteList(list._id)}
-                                    onDeleteTask={(taskId) => handleDeleteTask(taskId, list._id)}
-                                />
-                            ))}
-                        </DragDropContext>
+                                                        <div className="absolute right-0 top-full mt-2 w-48 bg-[#16181d] border border-white/[0.1] rounded-lg shadow-xl overflow-hidden hidden group-hover/assign:block z-50">
+                                                            <div className="p-2">
+                                                                <div className="text-xs font-semibold text-gray-400 mb-2 px-2">Assign to...</div>
+                                                                {board.members && board.members.filter(Boolean).map(member => (
+                                                                    <button
+                                                                        key={member._id}
+                                                                        onClick={async () => {
+                                                                            try {
+                                                                                const token = localStorage.getItem('token');
+                                                                                await axios.patch(`http://localhost:5001/api/tasks/${task._id}/assign`,
+                                                                                    { assignee: member._id },
+                                                                                    { headers: { Authorization: `Bearer ${token}` } }
+                                                                                );
+                                                                                socket.emit('task_assigned', { boardId: id });
+                                                                                // Update local search results to reflect change immediately
+                                                                                setSearchResults(prev => prev.map(t =>
+                                                                                    t._id === task._id ? { ...t, assignee: member } : t
+                                                                                ));
+                                                                                toast.success(`Assigned to ${member.username}`);
+                                                                            } catch (err) {
+                                                                                toast.error('Failed to assign task');
+                                                                            }
+                                                                        }}
+                                                                        className="w-full text-left px-2 py-1.5 text-sm text-gray-300 hover:bg-white/[0.05] rounded flex items-center gap-2"
+                                                                    >
+                                                                        <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-[8px] text-white">
+                                                                            {member.username.charAt(0).toUpperCase()}
+                                                                        </div>
+                                                                        {member.username}
+                                                                    </button>
+                                                                ))}
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            const token = localStorage.getItem('token');
+                                                                            await axios.patch(`http://localhost:5001/api/tasks/${task._id}/assign`,
+                                                                                { assignee: null },
+                                                                                { headers: { Authorization: `Bearer ${token}` } }
+                                                                            );
+                                                                            socket.emit('task_assigned', { boardId: id });
+                                                                            setSearchResults(prev => prev.map(t =>
+                                                                                t._id === task._id ? { ...t, assignee: null } : t
+                                                                            ));
+                                                                            toast.success('Task unassigned');
+                                                                        } catch (err) {
+                                                                            toast.error('Failed to unassign task');
+                                                                        }
+                                                                    }}
+                                                                    className="w-full text-left px-2 py-1.5 text-sm text-red-400 hover:bg-red-500/10 rounded mt-1 border-t border-white/[0.05]"
+                                                                >
+                                                                    Unassign
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
 
-                        {/* Add List Button (Canvas) */}
-                        <div className="w-[280px] flex-shrink-0">
-                            <button
-                                onClick={() => setIsListModalOpen(true)}
-                                className="w-full bg-transparent hover:bg-white/[0.03] border border-transparent hover:border-white/[0.1] rounded-lg p-3 flex items-center gap-2 text-gray-400 hover:text-gray-200 font-medium transition-all text-[13px]"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span>Add another list</span>
+                                                    {/* Delete Button */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteTask(task._id, task.list?._id || task.list);
+                                                            // Remove from search results
+                                                            setSearchResults(prev => prev.filter(t => t._id !== task._id));
+                                                        }}
+                                                        className="text-gray-500 hover:text-red-400 transition-colors p-1"
+                                                        title="Delete Task"
+                                                    >
+                                                        <span className="sr-only">Delete</span>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-trash-2"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <Pagination
+                                            currentPage={searchPage}
+                                            totalPages={searchMeta.totalPages}
+                                            totalCount={searchMeta.totalCount}
+                                            onPageChange={handlePageChange}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="text-gray-500 italic">No tasks found matching your query.</div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="h-full px-4 py-6 flex space-x-4 min-w-max">
+                                <DragDropContext onDragEnd={onDragEnd}>
+                                    {lists.map(list => (
+                                        <ListColumn
+                                            key={list._id}
+                                            list={list}
+                                            tasks={list.tasks}
+                                            onAddTask={openTaskModal}
+                                            boardMembers={board.members ? board.members.filter(Boolean) : []}
+                                            onDeleteList={() => handleDeleteList(list._id)}
+                                            onDeleteTask={(taskId) => handleDeleteTask(taskId, list._id)}
+                                        />
+                                    ))}
+                                </DragDropContext>
+
+                                {/* Add List Button */}
+                                <div className="w-[280px] flex-shrink-0">
+                                    <button
+                                        onClick={() => setIsListModalOpen(true)}
+                                        className="w-full bg-transparent hover:bg-white/[0.03] border border-transparent hover:border-white/[0.1] rounded-lg p-3 flex items-center gap-2 text-gray-400 hover:text-gray-200 font-medium transition-all text-[13px]"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        <span>Add another list</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Activity Sidebar */}
+                    <div className={`w-[320px] bg-[#111319] border-l border-white/[0.08] flex flex-col flex-shrink-0 transition-all duration-300 ${isActivityOpen ? 'mr-0' : '-mr-[320px]'}`}>
+                        <div className="h-14 border-b border-white/[0.08] flex items-center justify-between px-4">
+                            <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                                <Activity className="w-4 h-4 text-indigo-400" />
+                                Activity
+                            </h3>
+                            <button onClick={() => setIsActivityOpen(false)} className="text-gray-500 hover:text-white">
+                                &times;
                             </button>
                         </div>
+                        <div className="flex-1 overflow-hidden">
+                            {board && <ActivityLog boardId={board._id} />}
+                        </div>
                     </div>
-                </main>
+                </div>
             </div>
 
             {/* Create List Modal */}

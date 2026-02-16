@@ -1,6 +1,7 @@
 const express = require('express');
 const List = require('../models/List');
 const Board = require('../models/Board');
+const logActivity = require('../utils/activityLogger');
 const { protect } = require('../middleware/auth');
 
 const router = express.Router();
@@ -17,6 +18,16 @@ router.post('/', protect, async (req, res) => {
         // Add list to board
         await Board.findByIdAndUpdate(boardId, { $push: { lists: list._id } });
 
+        // Log Activity
+        await logActivity(req, {
+            boardId,
+            userId: req.user.id,
+            actionType: 'LIST_CREATED',
+            details: `Created list "${list.title}"`,
+            targetId: list._id,
+            targetModel: 'List'
+        });
+
         res.status(201).json(list);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -27,6 +38,19 @@ router.post('/', protect, async (req, res) => {
 router.put('/:id', protect, async (req, res) => {
     try {
         const list = await List.findByIdAndUpdate(req.params.id, req.body, { new: true });
+
+        // Log Activity
+        if (req.body.title) {
+            await logActivity(req, {
+                boardId: list.board,
+                userId: req.user.id,
+                actionType: 'LIST_RENAMED',
+                details: `Renamed list to "${list.title}"`,
+                targetId: list._id,
+                targetModel: 'List'
+            });
+        }
+
         res.json(list);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -46,6 +70,16 @@ router.delete('/:id', protect, async (req, res) => {
 
         // Delete all tasks in this list
         await Task.deleteMany({ list: list._id });
+
+        // Log Activity
+        await logActivity(req, {
+            boardId: list.board,
+            userId: req.user.id,
+            actionType: 'LIST_DELETED',
+            details: `Deleted list "${list.title}"`,
+            targetId: list._id,
+            targetModel: 'List'
+        });
 
         await list.deleteOne();
         res.json({ message: 'List and associated tasks removed' });

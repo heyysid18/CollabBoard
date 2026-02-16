@@ -2,6 +2,7 @@ const express = require('express');
 const Board = require('../models/Board');
 const List = require('../models/List');
 const Task = require('../models/Task');
+const logActivity = require('../utils/activityLogger');
 const { protect } = require('../middleware/auth');
 
 const router = express.Router();
@@ -48,6 +49,16 @@ router.post('/', protect, async (req, res) => {
             board: board._id,
             user: req.user.id,
             role: 'owner'
+        });
+
+        // Log Activity
+        await logActivity(req, {
+            boardId: board._id,
+            userId: req.user.id,
+            actionType: 'BOARD_CREATED',
+            details: `Created board "${board.title}"`,
+            targetId: board._id,
+            targetModel: 'Board'
         });
 
         res.status(201).json(board);
@@ -109,10 +120,15 @@ router.post('/:id/invite', protect, async (req, res) => {
         // AND, if the user is on the dashboard, they might want to know. 
         // We will implement `socket.join("user_" + userId)` in frontend Dashboard.
 
-        io.to(`user_${userToInvite._id}`).emit('board_invited', {
+        // Log Activity
+        await logActivity(req, {
             boardId: board._id,
-            boardTitle: board.title,
-            invitedBy: req.user.username
+            userId: req.user.id,
+            actionType: 'MEMBER_INVITED',
+            details: `Invited ${userToInvite.username} to the board`,
+            targetId: userToInvite._id,
+            targetModel: 'User',
+            metadata: { invitedEmail: userToInvite.email }
         });
 
         res.json({ message: 'User invited successfully', user: { _id: userToInvite._id, username: userToInvite.username, email: userToInvite.email } });
@@ -141,7 +157,7 @@ router.get('/:id', protect, async (req, res) => {
                     path: 'tasks',
                     model: 'Task',
                     populate: {
-                        path: 'assignees',
+                        path: 'assignee',
                         select: 'username email'
                     }
                 }

@@ -12,7 +12,8 @@ import { useSocket } from '../context/SocketContext';
 const TaskCard = ({ task, index, boardMembers = [], onDelete }) => {
     // ... existing state ...
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-    const [selectedAssignees, setSelectedAssignees] = useState(task.assignees ? task.assignees.map(u => u._id || u) : []);
+    // Task.assignee is now a single object or null
+    const [selectedAssignee, setSelectedAssignee] = useState(task.assignee ? (task.assignee._id || task.assignee) : null);
     const socket = useSocket();
 
     const priorityStyles = {
@@ -22,11 +23,8 @@ const TaskCard = ({ task, index, boardMembers = [], onDelete }) => {
     };
 
     const toggleAssignee = (userId) => {
-        setSelectedAssignees(prev =>
-            prev.includes(userId)
-                ? prev.filter(id => id !== userId)
-                : [...prev, userId]
-        );
+        // If clicking the same user, unassign. Else assign new user.
+        setSelectedAssignee(prev => prev === userId ? null : userId);
     };
 
     const handleAssign = async (e) => {
@@ -34,18 +32,18 @@ const TaskCard = ({ task, index, boardMembers = [], onDelete }) => {
         try {
             const token = localStorage.getItem('token');
             await axios.patch(`http://localhost:5001/api/tasks/${task._id}/assign`, {
-                assignees: selectedAssignees
+                assignee: selectedAssignee
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            toast.success('Assignees updated');
+            toast.success('Assignee updated');
             setIsAssignModalOpen(false);
-            // Socket emission is handled by backend, so we just wait for update or optimistic UI
         } catch (error) {
             console.error(error);
-            toast.error('Failed to assign users');
+            toast.error('Failed to assign user');
         }
     };
+
     const handleDelete = (e) => {
         e.stopPropagation();
         onDelete();
@@ -91,23 +89,21 @@ const TaskCard = ({ task, index, boardMembers = [], onDelete }) => {
                                 </div>
                             </div>
 
-                            {/* Assignees */}
+                            {/* Assignee */}
                             <div className="flex items-center -space-x-1.5">
-                                {task.assignees && task.assignees.filter(Boolean).map(user => {
-                                    // Handle case where user is just an ID string (not populated)
-                                    const username = user.username || 'Unknown';
-                                    const initial = username.charAt(0).toUpperCase();
-                                    return (
-                                        <div key={user._id || user} className="w-5 h-5 rounded-full bg-indigo-500 border border-[#20232b] flex items-center justify-center text-[8px] font-bold text-white z-10" title={username}>
-                                            {initial}
-                                        </div>
-                                    );
-                                })}
+                                {task.assignee && (
+                                    <div
+                                        className="w-5 h-5 rounded-full bg-indigo-500 border border-[#20232b] flex items-center justify-center text-[8px] font-bold text-white z-10"
+                                        title={task.assignee.username || 'User'}
+                                    >
+                                        {(task.assignee.username || 'U').charAt(0).toUpperCase()}
+                                    </div>
+                                )}
 
                                 {/* Assign Button */}
                                 <button
                                     onClick={(e) => {
-                                        e.stopPropagation(); // prevent drag?
+                                        e.stopPropagation();
                                         setIsAssignModalOpen(true);
                                     }}
                                     className="w-5 h-5 rounded-full bg-[#2a2e37] border border-[#3f4350] border-dashed flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-400 transition-colors z-20"
@@ -122,7 +118,7 @@ const TaskCard = ({ task, index, boardMembers = [], onDelete }) => {
             </Draggable>
 
             {/* Assignment Modal */}
-            <Modal isOpen={isAssignModalOpen} onClose={() => setIsAssignModalOpen(false)} title="Assign Users">
+            <Modal isOpen={isAssignModalOpen} onClose={() => setIsAssignModalOpen(false)} title="Assign User">
                 <form onSubmit={handleAssign} className="space-y-4">
                     <div className="max-h-60 overflow-y-auto custom-scrollbar border border-white/[0.06] rounded-md p-2">
                         {boardMembers.length > 0 ? (
@@ -132,7 +128,7 @@ const TaskCard = ({ task, index, boardMembers = [], onDelete }) => {
                                     onClick={() => toggleAssignee(member._id)}
                                     className={cn(
                                         "flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors",
-                                        selectedAssignees.includes(member._id) ? "bg-indigo-500/20 border border-indigo-500/50" : "hover:bg-white/[0.03] border border-transparent"
+                                        selectedAssignee === member._id ? "bg-indigo-500/20 border border-indigo-500/50" : "hover:bg-white/[0.03] border border-transparent"
                                     )}
                                 >
                                     <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold text-white">
@@ -142,7 +138,7 @@ const TaskCard = ({ task, index, boardMembers = [], onDelete }) => {
                                         <p className="text-sm text-gray-200 font-medium">{member.username}</p>
                                         <p className="text-xs text-gray-500">{member.email}</p>
                                     </div>
-                                    {selectedAssignees.includes(member._id) && (
+                                    {selectedAssignee === member._id && (
                                         <div className="w-4 h-4 rounded-full bg-indigo-500 flex items-center justify-center text-[10px] text-white">✓</div>
                                     )}
                                 </div>
@@ -154,7 +150,7 @@ const TaskCard = ({ task, index, boardMembers = [], onDelete }) => {
 
                     <div className="flex justify-end gap-3 mt-4">
                         <Button type="button" variant="ghost" onClick={() => setIsAssignModalOpen(false)}>Cancel</Button>
-                        <Button type="submit">Save Assignments</Button>
+                        <Button type="submit">Save Assignment</Button>
                     </div>
                 </form>
             </Modal>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, LogOut, Settings, Plus, Search, Bell } from 'lucide-react';
+import { Layout, LogOut, Settings, Plus, Search, Bell, CheckSquare } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useAuth } from '../../context/AuthContext';
 
@@ -49,6 +49,12 @@ const AppLayout = ({ children }) => {
                 <div className="flex-1 overflow-y-auto py-4 px-2">
                     <div className="mb-6">
                         <h4 className="px-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Workspace</h4>
+                        <SidebarItem
+                            icon={CheckSquare}
+                            label="My Tasks"
+                            to="/my-tasks"
+                            isActive={location.pathname === '/my-tasks'}
+                        />
                         <SidebarItem
                             icon={Layout}
                             label="Boards"
