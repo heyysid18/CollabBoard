@@ -517,7 +517,27 @@ const Board = () => {
                     </div>
                 </form>
             </Modal>
-        </AppLayout>
+
+            {/* Invite Member Modal */}
+            < Modal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} title="Invite Member" >
+                <form onSubmit={handleInvite} className="space-y-4">
+                    <div>
+                        <label className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5 block">Email Address</label>
+                        <Input
+                            type="email"
+                            value={inviteEmail}
+                            onChange={(e) => setInviteEmail(e.target.value)}
+                            placeholder="colleague@example.com"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="flex justify-end gap-3 mt-6">
+                        <Button type="button" variant="ghost" onClick={() => setIsInviteModalOpen(false)}>Cancel</Button>
+                        <Button type="submit">Send Invite</Button>
+                    </div>
+                </form>
+            </Modal >
+        </AppLayout >
     );
 };
 
